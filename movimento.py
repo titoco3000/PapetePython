@@ -13,14 +13,14 @@ class Movimento:
     ]
 
     def __init__(self, original = 0):
-        if type(original == Movimento):
+        if type(original) == Movimento:
             self.id = original.id
-        elif type(original == int):
-            if 0>=id>=5:
-                self.id = original.id
+        elif type(original) == int:
+            if 0<=original<=5:
+                self.id = original
             else:
                 raise Exception(f"index de movimento deve ser entre 0 e 5 ({original})")
-        elif type(original == str):
+        elif type(original) == str:
             try:
                 self.id = Movimento.__nomes_interno.index(original)
             except ValueError:
@@ -44,9 +44,9 @@ class Movimento:
 
     def descricao(self) -> str:
         return Movimento.__descricoes[self.id]
-    
-    def descricao(self) -> int:
-        return self.id
-    
+        
     def saida(self) -> list:
         return Movimento.__saidas[self.id]
+
+    def __str__(self):
+        return self.nome_externo()

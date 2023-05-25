@@ -3,15 +3,24 @@ import sys
 import glob
 import threading
 import weakref
+from neural import Neural
+from movimento import Movimento
 
 class Papete:
     def __init__(self, prioridade_porta = 0):
         self.__conexao = 'desconectado'
-        self.__pe_esq = True
+        self.pe_esq = True
         self.__sensor = (0.0,0.0)
         self.prioridade_porta = prioridade_porta
         self.__main_thread = threading.current_thread()
         self.__mutex = threading.Lock()
+
+        self.neural = Neural()
+        self.__prevendo = False
+        self.__mutex_prev = threading.Lock()
+        self.__prev_atual = [0.0,0.0,1.0,0.0,0.0]
+        self.__thread_previsora = threading.Thread(target=Papete.prever_async,
+                args=(weakref.proxy(self), ))
 
         self.__threads_running = True
         self.__initialised = threading.Event()
@@ -44,7 +53,6 @@ class Papete:
                 self.__conexao = 'serial'
                 try:
                     data = arduino.readline().decode().strip()
-                    print(data)
                     for segm in data.split('D'):
                         if len(segm) > 1:
                             pe_esq = segm[0] == 'E'[0]
@@ -54,7 +62,7 @@ class Papete:
                             if len(numeros) >= 2:
                                 numeros = (float(numeros[0]),float(numeros[1]))
                                 with self.__mutex:
-                                    self.__pe_esq = pe_esq
+                                    self.pe_esq = pe_esq
                                     self.__sensor = numeros
                 except (UnicodeDecodeError,ValueError):
                     pass
@@ -62,16 +70,35 @@ class Papete:
                     self.__conexao = 'desconectado'
                     break
     
+    def prever_async(self):        
+        sensor = self.obter_sensor()
+        p = self.neural.prever(sensor[0],sensor[1],self.pe_esq)
+        with self.__mutex_prev:
+            self.__prev_atual = p
+        self.__prevendo = False
+
     def obter_dados(self):
         with self.__mutex:
-            return self.__sensor, self.__pe_esq, self.__conexao
+            return self.__sensor, self.pe_esq, self.__conexao
     
     def obter_sensor(self):
         with self.__mutex:
             return self.__sensor
+    
+    def obter_previsao(self):
+        if not self.__prevendo:
+            self.__prevendo = True
+            self.__thread_previsora.start()
+
+        with self.__mutex_prev:
+            return self.__prev_atual.copy()
         
+    def registrar(self, movimento:Movimento):
+        sensor = self.obter_sensor()
+        self.neural.registrar(sensor[0],sensor[1],self.pe_esq,movimento)
+
     def __str__(self):
-        return f"__conexao: {self.__conexao}; lado esq: {self.__pe_esq}, valores: {self.__sensor}"
+        return f"__conexao: {self.__conexao}; lado esq: {self.pe_esq}, valores: {self.__sensor}"
 
     def listar_portas_disponiveis():
         """ Lists serial port names

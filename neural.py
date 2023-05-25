@@ -18,8 +18,8 @@ class Neural:
     
     def normalizar(pitch:float, roll: float, pe_esq:bool):
         return (
-            (pitch+360.0)/720.0,
-            (roll+360.0)/720.0,
+            (pitch+math.pi)*0.5/math.pi,
+            (roll+math.pi)*0.5/math.pi,
             1.0 if pe_esq else 0.0
         )
     
@@ -38,14 +38,14 @@ class Neural:
         self.movimentos_registrados = []
         return 0
     
-    def salvar_dados(self,destino:str, modo='a'):
+    def salvar_dados(self,destino='papete.csv', modo='a'):
         if not os.path.isfile(destino):
             arquivo = open(destino, 'w')
             arquivo.write('pitch,roll,lado,movimento,sessao')
             arquivo.close()
         arquivo = open(destino, modo)
         for e in self.movimentos_registrados:
-            arquivo.write(f"\n{e[0]};{e[1]};{'E' if e[2] else 'D'};{e[3].nome_externo()};{self.sessao}")
+            arquivo.write(f"\n{e[0]};{e[1]};{'E' if e[2] else 'D'};{e[3].nome_interno()};{self.sessao}")
         arquivo.close()    
 
     def iniciar_sessao(self):
@@ -109,18 +109,16 @@ class Neural:
         sessoes = []
 
         with open(arquivo) as csv_file:
-            csv_reader = csv.reader(csv_file, delimiter=',')
+            csv_reader = csv.reader(csv_file, delimiter=';')
             # pula o cabeçalho
             next(csv_reader)
             for row in csv_reader:
                 # lê e normaliza os valores
-                if len(row) > 0:
-                    item = row[:4]
-                    item = Neural.normalizar(float(item[0]), float(item[1]),item[2] == 'E')
+                if len(row) > 3:
+                    item = Neural.normalizar(float(row[0]), float(row[1]),row[2] == 'E')
 
-                    expected = Movimento(item[3]).saida()
-                    
-                    if len(row)>5:
+                    expected = Movimento(row[3]).saida()
+                    if len(row)>4:
                         sessoes.append(int(row[4]))
                     else:
                         sessoes.append(0)
@@ -137,24 +135,3 @@ class Neural:
             random.shuffle(sessoes)
 
         return np.array(todas_entradas), np.array(todas_saidas), np.array(sessoes)
-
-class Avaliacao():
-    def __init__(self, neural:Neural):
-        self.neural = neural
-        self.arquivo_de_referencia = 'papete.csv'
-    #funcoes estaticas
-    #retorna (outra_parte, parte_k)
-    def k_pastas(lista: np.ndarray, k: int, selecionada: int = 0):
-        tamanho_pasta = len(lista) // k
-
-        p1 = lista[:((selecionada+1) * tamanho_pasta)]
-        p2 = lista[((selecionada + 1) * tamanho_pasta):]
-        if len(p1) == 0:
-            p = np.array(p2)
-        elif len(p2) == 0:
-            p = np.array(p1)
-        else:
-            p = np.concatenate((lista[:(selecionada * tamanho_pasta)], lista[((selecionada + 1) * tamanho_pasta):]))
-
-        return p, np.array(lista[selecionada * tamanho_pasta:(selecionada + 1) * tamanho_pasta])
-    
